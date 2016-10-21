@@ -42,6 +42,8 @@ from unidiff.constants import (
     RE_SOURCE_FILENAME,
     RE_TARGET_FILENAME,
     RE_NO_NEWLINE_MARKER,
+    ENCODE_FALLBACK_HEX,
+    ENCODE_FALLBACK_BLANK,
 )
 from unidiff.errors import UnidiffParseError
 
@@ -49,11 +51,12 @@ from unidiff.errors import UnidiffParseError
 PY2 = sys.version_info[0] == 2
 if PY2:
     open_file = codecs.open
-    make_str = lambda x: x.encode(DEFAULT_ENCODING)
+    make_str = lambda x: x.encode(DEFAULT_ENCODING, ENCODE_FALLBACK_HEX)
+    make_unicode = lambda x: x.decode(DEFAULT_ENCODING, ENCODE_FALLBACK_BLANK)
 
     def implements_to_string(cls):
         cls.__unicode__ = cls.__str__
-        cls.__str__ = lambda x: x.__unicode__().encode(DEFAULT_ENCODING)
+        cls.__str__ = lambda x: x.__unicode__().encode(DEFAULT_ENCODING, ENCODE_FALLBACK_HEX)
         return cls
 else:
     open_file = open
@@ -79,7 +82,9 @@ class Line(object):
         return make_str("<Line: %s>") % make_str(self)
 
     def __str__(self):
-        return "%s%s" % (self.line_type, self.value)
+        t = make_unicode(self.line_type)
+        v = make_unicode(self.value)
+        return u"%s%s" % (t, v)
 
     @property
     def is_added(self):
@@ -190,7 +195,7 @@ class PatchedFile(list):
 
         for diff_line_no, line in diff:
             if encoding is not None:
-                line = line.decode(encoding)
+                line = line.decode(encoding, ENCODE_FALLBACK_BLANK)
             valid_line = RE_HUNK_BODY_LINE.match(line)
             if not valid_line:
                 raise UnidiffParseError('Hunk diff line expected: %s' % line)
@@ -300,7 +305,7 @@ class PatchSet(list):
         diff = enumerate(diff, 1)
         for unused_diff_line_no, line in diff:
             if encoding is not None:
-                line = line.decode(encoding)
+                line = line.decode(encoding, ENCODE_FALLBACK_BLANK)
             # check for source file header
             is_source_filename = RE_SOURCE_FILENAME.match(line)
             if is_source_filename:
